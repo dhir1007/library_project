@@ -1,11 +1,13 @@
 // src/models.rs
-#[derive(Debug, PartialEq, Clone)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum Status {
     Available,
     Borrowed(String), // String isliye taaki borrow karne waale ka naam store ho sake
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Book {
     pub title: String,
     pub author: String,

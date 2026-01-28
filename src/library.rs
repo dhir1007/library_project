@@ -1,6 +1,9 @@
 // src/library.rs
+use crate::models::{Book, Status};
 use std::collections::HashMap;
-use crate::models::{Book, Status}; // Models file se data mangwaya
+use std::fs::File;
+use std::io::BufReader;
+use std::io::Write; // File mein likhne ke liye trait // Models file se data mangwaya
 
 // Yahan define karo taaki poori file ko pata ho
 pub type LibResult = Result<(), String>;
@@ -10,7 +13,9 @@ pub struct Library {
 
 impl Library {
     pub fn new() -> Self {
-        Self { register: HashMap::new() }
+        Self {
+            register: HashMap::new(),
+        }
     }
 
     pub fn add_book(&mut self, id: u32, book: Book) {
@@ -21,9 +26,11 @@ impl Library {
     // 1. Borrow karne ka function
     pub fn borrow_book(&mut self, id: u32, borrower: String) -> LibResult {
         // 1. Check karo book register mein hai ya nahi
-        let book = self.register.get_mut(&id)
-            .ok_or(format!("ID {} ki koi book library mein nahi mili!", id))?; 
-            // Ye '?' jaadu hai! Agar None hua toh yahin se Error return kar dega.
+        let book = self
+            .register
+            .get_mut(&id)
+            .ok_or(format!("ID {} ki koi book library mein nahi mili!", id))?;
+        // Ye '?' jaadu hai! Agar None hua toh yahin se Error return kar dega.
 
         // 2. Check karo availability
         if let Status::Borrowed(name) = &book.status {
@@ -60,13 +67,74 @@ impl Library {
     // Reporting function - Humne '&self' liya kyunki humein sirf dekhna hai
     pub fn display_report(&self) {
         println!("--- Library Inventory Report ---");
-        
+
         // .iter() humein ek 'Iterator' deta hai jo ownership nahi leta
         // Sirf references (&id, &book) deta hai
         for (id, book) in self.register.iter() {
-            println!("ID: {}, Title: {}, Status: {:?}", id, book.title, book.status);
+            println!(
+                "ID: {}, Title: {}, Status: {:?}",
+                id, book.title, book.status
+            );
         }
-        
+
         println!("--------------------------------");
     } // saare temporary references yahan 'DROP' ho jayenge! ✅
+
+    // Data Save karna 💾
+    pub fn save_to_file(&self, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let file = File::create(filename)?;
+        // 'pretty' version use karne se JSON file insaano ke padhne layak dikhegi
+        serde_json::to_writer_pretty(file, &self.register)?;
+        Ok(())
+    }
+
+    // Data Load karna 📥
+    pub fn load_from_file(filename: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let file = File::open(filename)?;
+        let reader = BufReader::new(file);
+        let register = serde_json::from_reader(reader)?;
+        Ok(Self { register })
+    }
+}
+
+#[cfg(test)] // Ye bata raha hai ki ye code sirf 'cargo test' ke waqt chalega
+mod tests {
+    use super::*; // Bahar ke Library functions ko yahan use karne ke liye
+
+    #[test]
+    fn test_add_book() {
+        let mut lib = Library::new();
+        lib.add_book(
+            1,
+            Book {
+                title: "Rust Guide".to_string(),
+                author: "Gemini".to_string(),
+                status: Status::Available,
+            },
+        );
+
+        // Check karo ki kya book sach mein add hui
+        assert!(lib.register.contains_key(&1));
+    }
+    #[test]
+    fn test_borrow_book_status() {
+        let mut lib = Library::new();
+        lib.add_book(
+            1,
+            Book {
+                title: "Rust Guide".to_string(),
+                author: "Gemini".to_string(),
+                status: Status::Available,
+            },
+        );
+
+        // Book borrow karte hain
+        lib.borrow_book(1, "Rahul".to_string()).unwrap();
+
+        // Register se book nikaal kar uska status check karte hain
+        let book = lib.register.get(&1).unwrap();
+
+        // Check karo ki status 'Borrowed("Rahul")' hai ya nahi
+        assert_eq!(book.status, Status::Borrowed("Rahul".to_string()));
+    }
 }
